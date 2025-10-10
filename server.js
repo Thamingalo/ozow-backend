@@ -56,7 +56,10 @@ function buildPostHashString(postObj) {
     postObj.Optional5 || "",
     postObj.Customer || ""
   ];
-  return arr.join("") + (PRIVATE_KEY || "");
+  const concatString = arr.join("") + (PRIVATE_KEY || "");
+  console.log("🧩 Ozow Hash String:", concatString);
+  console.log("🔐 Generated Hash:", sha512HexLower(concatString));
+  return concatString;
 }
 function generatePostHash(postObj) {
   return sha512HexLower(buildPostHashString(postObj));

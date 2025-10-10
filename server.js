@@ -1,212 +1,141 @@
+
 import express from "express";
 import axios from "axios";
-import qs from "qs";
-import { v4 as uuidv4 } from "uuid";
-import dotenv from "dotenv";
-import cors from "cors";
 import crypto from "crypto";
+import dotenv from "dotenv";
 
 dotenv.config();
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
-const REDIRECT_BASE = process.env.REDIRECT_BASE_URL || "https://www.mzansilearnai.co.za";
-const WEBHOOK_BASE = process.env.WEBHOOK_BASE_URL || "https://ozow-backend.onrender.com";
-const MODE = (process.env.OZOW_INTEGRATION_MODE || "legacy").toLowerCase();
+const PORT = process.env.PORT || 10000;
 
-// Legacy credentials
-const SITE_CODE = process.env.OZOW_SITE_CODE;
-const PRIVATE_KEY = process.env.OZOW_PRIVATE_KEY;
-const API_KEY = process.env.OZOW_API_KEY;
-const OZOW_PAYMENT_URL = process.env.OZOW_PAYMENT_URL || "https://pay.ozow.com";
-const OZOW_API_URL = process.env.OZOW_API_URL || "https://api.ozow.com";
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", env: process.env.OZOW_INTEGRATION_MODE || "test" });
+});
 
-// OneAPI credentials (future use)
-const ONEAPI_ENV = process.env.OZOW_ONEAPI_ENV || "https://stagingone.ozow.com";
-const CLIENT_ID = process.env.OZOW_CLIENT_ID;
-const CLIENT_SECRET = process.env.OZOW_CLIENT_SECRET;
-
-app.use(cors({ origin: REDIRECT_BASE }));
-
-function sha512HexLower(s) {
-  return crypto.createHash("sha512").update(s.toLowerCase()).digest("hex");
-}
-function normalizeHash(h) {
-  if (!h) return "";
-  return h.replace(/^0+/, "").toLowerCase();
-}
-function buildPostHashString(postObj) {
-  const arr = [
-    postObj.SiteCode || "",
-    postObj.CountryCode || "",
-    postObj.CurrencyCode || "",
-    (typeof postObj.Amount !== "undefined" ? Number(postObj.Amount).toFixed(2) : ""),
-    postObj.TransactionReference || "",
-    postObj.BankReference || "",
-    postObj.CancelUrl || "",
-    postObj.ErrorUrl || "",
-    postObj.SuccessUrl || "",
-    postObj.NotifyUrl || "",
-    (typeof postObj.IsTest !== "undefined" ? String(postObj.IsTest) : ""),
-    postObj.Optional1 || "",   // <-- force empty
-    postObj.Optional2 || "",
-    postObj.Optional3 || "",
-    postObj.Optional4 || "",
-    postObj.Optional5 || "",
-    postObj.Customer || ""
-  ];
-
-  const concatString = arr.join("") + (PRIVATE_KEY || "");
-  console.log("🧩 Ozow Hash String (FINAL):", concatString);
-  console.log("🔐 Generated Hash (FINAL):", sha512HexLower(concatString));
-  return concatString;
-}
-function generatePostHash(postObj) {
-  return sha512HexLower(buildPostHashString(postObj));
-}
-function buildResponseHashString(responseObj) {
-  const arr = [
-    responseObj.SiteCode || "",
-    responseObj.TransactionId || "",
-    responseObj.TransactionReference || "",
-    (typeof responseObj.Amount !== "undefined" ? Number(responseObj.Amount).toFixed(2) : ""),
-    responseObj.Status || "",
-    responseObj.Optional1 || "",
-    responseObj.Optional2 || "",
-    responseObj.Optional3 || "",
-    responseObj.Optional4 || "",
-    responseObj.Optional5 || "",
-    responseObj.CurrencyCode || "",
-    (typeof responseObj.IsTest !== "undefined" ? String(responseObj.IsTest) : ""),
-    responseObj.StatusMessage || ""
-  ];
-  return arr.join("") + (PRIVATE_KEY || "");
-}
-function validateResponseHash(responseObj) {
-  const computed = sha512HexLower(buildResponseHashString(responseObj));
-  const received = (responseObj.Hash || "").toLowerCase();
-  return normalizeHash(computed) === normalizeHash(received);
-}
-
-async function createLegacyPayment(postObj) {
-  postObj.HashCheck = generatePostHash(postObj);
-  const url = `${OZOW_API_URL}/PostPaymentRequest`;
-   const headers = {
-    ApiKey: API_KEY,
-    "Content-Type": "application/json",
-    Accept: "application/json"
-  };
-  console.log("🚀 Sending to Ozow:", JSON.stringify({ requestFields: postObj }, null, 2));
-  const resp = await axios.post(url, { requestFields: postObj }, { headers });
-
-}
-
-async function getOneApiAccessToken() {
-  const tokenUrl = `${ONEAPI_ENV}/auth/connect/token`;
-  const res = await axios.post(
-    tokenUrl,
-    qs.stringify({ grant_type: "client_credentials", scope: "payment" }),
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, auth: { username: CLIENT_ID, password: CLIENT_SECRET } }
-  );
-  return res.data.access_token;
-}
-
+// Create payment
 app.post("/api/payments/create", async (req, res) => {
   try {
-    const { amount, email, firstName, lastName, reference, isTest } = req.body;
-    if (MODE === "oneapi") {
-      const token = await getOneApiAccessToken();
-      const payload = {
-        amount,
-        currencyCode: "ZAR",
-        transactionReference: reference || `INV-${Date.now()}`,
-        customer: { firstName, lastName, email },
-        redirectUrls: {
-          successUrl: `${REDIRECT_BASE}/payment-success`,
-          cancelUrl: `${REDIRECT_BASE}/payment-cancel`,
-          errorUrl: `${REDIRECT_BASE}/payment-error`
-        },
-        notificationUrl: `${WEBHOOK_BASE}/api/payments/webhook`
-      };
-      const response = await axios.post(`${ONEAPI_ENV}/payments`, payload, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Idempotency-Key": uuidv4() }
-      });
-      return res.json({ paymentUrl: response.data.url || response.data.checkoutUrl || response.data });
-    }
-    const transactionReference = reference || `INV-${Date.now()}`;
-    const postObj = {
-      SiteCode: SITE_CODE,
-      CountryCode: "ZA",
-      CurrencyCode: "ZAR",
-      Amount: parseFloat(amount || 0).toFixed(2),
-      TransactionReference: transactionReference,
-      BankReference: transactionReference.slice(0, 20),
-      CancelUrl: `${WEBHOOK_BASE}/api/payments/redirect/cancel`,
-      ErrorUrl: `${WEBHOOK_BASE}/api/payments/redirect/error`,
-      SuccessUrl: `${WEBHOOK_BASE}/api/payments/redirect/success`,
-      NotifyUrl: `${WEBHOOK_BASE}/api/payments/webhook`,
-      IsTest: !!isTest,
-      Customer: `${firstName || ""} ${lastName || ""}`.trim()
+    const {
+      amount,
+      email,
+      firstName,
+      lastName,
+      reference,
+      isTest = true
+    } = req.body;
+
+    const siteCode = process.env.OZOW_SITE_CODE;
+    const privateKey = process.env.OZOW_PRIVATE_KEY;
+    const apiKey = process.env.OZOW_API_KEY;
+    const apiUrl = process.env.OZOW_API_URL || "https://api.ozow.com";
+    const webhookUrl = `${process.env.WEBHOOK_BASE_URL}/api/payments/webhook`;
+    const redirectBase = process.env.REDIRECT_BASE_URL;
+
+    const countryCode = "ZA";
+    const currencyCode = "ZAR";
+    const bankReference = reference.replace(/[^a-zA-Z0-9- ]/g, "").substring(0, 20);
+
+    const cancelUrl = `${redirectBase}/api/payments/redirect/cancel`;
+    const errorUrl = `${redirectBase}/api/payments/redirect/error`;
+    const successUrl = `${redirectBase}/api/payments/redirect/success`;
+
+    const amountFormatted = Number(amount).toFixed(2);
+
+    // Hash string per Ozow spec
+    const hashString = `${siteCode}${countryCode}${currencyCode}${amountFormatted}${reference}${bankReference}${cancelUrl}${errorUrl}${successUrl}${webhookUrl}${isTest}${privateKey}`;
+    const hashLower = hashString.toLowerCase();
+    const hash = crypto.createHash("sha512").update(hashLower).digest("hex");
+
+    console.log("🧩 Hash String:", hashString);
+    console.log("🔐 Hash Generated:", hash);
+
+    const payload = {
+      SiteCode: siteCode,
+      CountryCode: countryCode,
+      CurrencyCode: currencyCode,
+      Amount: amountFormatted,
+      TransactionReference: reference,
+      BankReference: bankReference,
+      CancelUrl: cancelUrl,
+      ErrorUrl: errorUrl,
+      SuccessUrl: successUrl,
+      NotifyUrl: webhookUrl,
+      IsTest: isTest,
+      HashCheck: hash,
+      Customer: `${firstName} ${lastName}`
     };
-    const result = await createLegacyPayment(postObj);
-    if (result && result.URL) return res.json({ paymentUrl: result.URL });
-    return res.status(500).json({ error: "No URL returned", details: result });
-  } catch (err) {
-    console.error("Create payment error:", err.response?.data || err.message);
-    return res.status(500).json({ error: "Payment creation failed", details: err.response?.data || err.message });
+
+    const headers = {
+      "ApiKey": apiKey,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
+
+    const response = await axios.post(`${apiUrl}/PostPaymentRequest`, payload, { headers });
+
+    if (response.data && response.data.url) {
+      return res.json({
+        paymentRequestId: response.data.paymentRequestId,
+        url: response.data.url,
+        message: "Payment created successfully."
+      });
+    } else {
+      return res.status(400).json({
+        error: "No URL returned from Ozow",
+        details: response.data
+      });
+    }
+  } catch (error) {
+    console.error("❌ Create payment error:", error.response?.data || error.message);
+    res.status(500).json({
+      error: "Payment creation failed",
+      details: error.response?.data || error.message
+    });
   }
 });
 
-app.post("/api/payments/redirect/:status", (req, res) => {
+// Redirect endpoints
+app.get("/api/payments/redirect/:status", (req, res) => {
+  const { status } = req.params;
+  res.send(`Ozow Payment ${status.toUpperCase()} — redirect successful.`);
+});
+
+// Webhook listener
+app.post("/api/payments/webhook", (req, res) => {
+  console.log("📩 Webhook received:", req.body);
+  res.json({ received: true });
+});
+
+// Transaction status
+app.get("/api/payments/status/:reference", async (req, res) => {
   try {
-    const status = req.params.status;
-    const body = req.body || {};
-    console.log("Redirect POST received:", status, body);
-    const ok = validateResponseHash(body);
-    if (!ok) return res.status(401).send("Invalid hash");
-    const query = `?transactionReference=${encodeURIComponent(body.TransactionReference || "")}&status=${encodeURIComponent(body.Status || "")}&transactionId=${encodeURIComponent(body.TransactionId || "")}`;
-    const redirectTo = `${REDIRECT_BASE}/payment-${status}${query}`;
-    return res.redirect(302, redirectTo);
-  } catch (e) {
-    console.error("Redirect handler error:", e);
-    return res.status(500).send("Server error");
+    const { reference } = req.params;
+    const apiKey = process.env.OZOW_API_KEY;
+    const siteCode = process.env.OZOW_SITE_CODE;
+    const apiUrl = process.env.OZOW_API_URL || "https://api.ozow.com";
+
+    const response = await axios.get(`${apiUrl}/GetTransactionByReference`, {
+      headers: {
+        ApiKey: apiKey,
+        Accept: "application/json"
+      },
+      params: {
+        siteCode,
+        transactionReference: reference
+      }
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("❌ Status check error:", error.response?.data || error.message);
+    res.status(500).json({
+      error: "Failed to retrieve transaction",
+      details: error.response?.data || error.message
+    });
   }
 });
 
-app.post("/api/payments/webhook", async (req, res) => {
-  try {
-    const body = req.body || {};
-    console.log("=== Ozow Notification Received ===");
-    console.log("Body:", JSON.stringify(body, null, 2));
-    const ok = validateResponseHash(body);
-    if (!ok) return res.sendStatus(401);
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("Webhook processing error:", err);
-    res.sendStatus(500);
-  }
-});
-
-app.get("/api/payments/check", async (req, res) => {
-  try {
-    const { reference, siteCode } = req.query;
-    if (!reference) return res.status(400).json({ error: "reference required" });
-    const sc = siteCode || SITE_CODE;
-    const url = `${OZOW_API_URL}/GetTransactionByReference?siteCode=${encodeURIComponent(sc)}&transactionReference=${encodeURIComponent(reference)}`;
-    const headers = { ApiKey: API_KEY, Accept: "application/json" };
-    const response = await axios.get(url, { headers });
-    return res.json(response.data);
-  } catch (err) {
-    console.error("GetTransactionByReference error:", err.response?.data || err.message);
-    return res.status(500).json({ error: "Failed to fetch transaction", details: err.response?.data || err.message });
-  }
-});
-
-app.get("/health", (req, res) => res.send({ status: "ok", mode: MODE }));
-
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT} (mode=${MODE})`);
-  console.log(`➡️ Redirect base: ${REDIRECT_BASE}`);
-  console.log(`➡️ Webhook base: ${WEBHOOK_BASE}`);
-});
+app.listen(PORT, () => console.log(`✅ Ozow backend v5 running on port ${PORT}`));

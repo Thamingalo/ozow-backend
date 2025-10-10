@@ -49,16 +49,17 @@ function buildPostHashString(postObj) {
     postObj.SuccessUrl || "",
     postObj.NotifyUrl || "",
     (typeof postObj.IsTest !== "undefined" ? String(postObj.IsTest) : ""),
-    postObj.Optional1 || "",
+    postObj.Optional1 || "",   // <-- force empty
     postObj.Optional2 || "",
     postObj.Optional3 || "",
     postObj.Optional4 || "",
     postObj.Optional5 || "",
     postObj.Customer || ""
   ];
+
   const concatString = arr.join("") + (PRIVATE_KEY || "");
-  console.log("🧩 Ozow Hash String:", concatString);
-  console.log("🔐 Generated Hash:", sha512HexLower(concatString));
+  console.log("🧩 Ozow Hash String (FINAL):", concatString);
+  console.log("🔐 Generated Hash (FINAL):", sha512HexLower(concatString));
   return concatString;
 }
 function generatePostHash(postObj) {

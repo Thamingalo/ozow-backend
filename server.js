@@ -92,9 +92,14 @@ function validateResponseHash(responseObj) {
 async function createLegacyPayment(postObj) {
   postObj.HashCheck = generatePostHash(postObj);
   const url = `${OZOW_API_URL}/PostPaymentRequest`;
-  const headers = { ApiKey: API_KEY, "Content-Type": "application/json", Accept: "application/json" };
-  const resp = await axios.post(url, postObj, { headers });
-  return resp.data;
+   const headers = {
+    ApiKey: API_KEY,
+    "Content-Type": "application/json",
+    Accept: "application/json"
+  };
+  console.log("🚀 Sending to Ozow:", JSON.stringify({ requestFields: postObj }, null, 2));
+  const resp = await axios.post(url, { requestFields: postObj }, { headers });
+
 }
 
 async function getOneApiAccessToken() {
@@ -134,7 +139,7 @@ app.post("/api/payments/create", async (req, res) => {
       SiteCode: SITE_CODE,
       CountryCode: "ZA",
       CurrencyCode: "ZAR",
-      Amount: Number(amount).toFixed(2),
+      Amount: parseFloat(amount || 0).toFixed(2),
       TransactionReference: transactionReference,
       BankReference: transactionReference.slice(0, 20),
       CancelUrl: `${WEBHOOK_BASE}/api/payments/redirect/cancel`,

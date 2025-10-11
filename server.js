@@ -42,7 +42,7 @@ app.post("/api/payments/create", async (req, res) => {
     const errorUrl = `${redirectBase}/api/payments/redirect/error`;
     const successUrl = `${redirectBase}/api/payments/redirect/success`;
 
-    const amountFormatted = Number(amount).toFixed(2);
+    const amountFormatted = parseFloat(amount).toFixed(2).toString();
 
     // Hash string per Ozow spec
     const hashString = `${siteCode}${countryCode}${currencyCode}${amountFormatted}${reference}${bankReference}${cancelUrl}${errorUrl}${successUrl}${webhookUrl}${isTest}${privateKey}`;

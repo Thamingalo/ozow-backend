@@ -1,17 +1,12 @@
-
 {
-  "name": "ozow-backend-v5",
+  "name": "ozow-backend-v5.2",
   "version": "1.0.0",
-  "description": "Ozow Legacy API v3.5 compliant backend integration for Render",
-  "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.6.8",
-    "crypto": "^1.0.1",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
   }
 }

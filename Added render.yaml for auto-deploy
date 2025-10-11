@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ozow-backend
+    env: node
+    region: frankfurt  # closest to SA
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: OZOW_SITE_CODE
+        value: TSTSTE0001
+      - key: OZOW_COUNTRY_CODE
+        value: ZA
+      - key: OZOW_CURRENCY_CODE
+        value: ZAR
+      - key: OZOW_PRIVATE_KEY
+        value: 215114531AFF7134A94C88CEEA48E
+      - key: OZOW_API_KEY
+        value: EB5758F2C3B4DF3FF4F2669D5FF5B
+      - key: OZOW_NOTIFY_URL
+        value: https://ozow-backend.onrender.com/api/payments/webhook
+      - key: OZOW_SUCCESS_URL
+        value: https://www.mzansilearnai.co.za/api/payments/redirect/success
+      - key: OZOW_ERROR_URL
+        value: https://www.mzansilearnai.co.za/api/payments/redirect/error
+      - key: OZOW_CANCEL_URL
+        value: https://www.mzansilearnai.co.za/api/payments/redirect/cancel

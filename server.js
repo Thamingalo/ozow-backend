@@ -1,4 +1,3 @@
-// server.js
 import express from 'express';
 import crypto from 'crypto';
 import axios from 'axios';
@@ -11,79 +10,41 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-// Config via environment variables (set these in Render/Heroku/GitHub Secrets)
-const SiteCode = process.env.OZOW_SITECODE || 'TSTSTE0001';
-const CountryCode = process.env.OZOW_COUNTRYCODE || 'ZA';
-const CurrencyCode = process.env.OZOW_CURRENCYCODE || 'ZAR';
-const PrivateKey = process.env.OZOW_PRIVATEKEY || ''; // DO NOT COMMIT PRODUCTION KEYS
-const ApiKey = process.env.OZOW_APIKEY || '';
-const IsTest = process.env.OZOW_ISTEST === 'true' || true;
+const SiteCode = process.env.OZOW_SITECODE;
+const SiteName = process.env.OZOW_SITENAME;
+const CountryCode = process.env.OZOW_COUNTRYCODE;
+const CurrencyCode = process.env.OZOW_CURRENCYCODE;
+const PrivateKey = process.env.OZOW_PRIVATEKEY;
+const ApiKey = process.env.OZOW_APIKEY;
+const IsTest = process.env.OZOW_ISTEST === 'true';
 
-const CancelUrl = process.env.OZOW_CANCELURL || 'https://www.mzansilearnai.co.za/api/payments/redirect/cancel';
-const ErrorUrl = process.env.OZOW_ERRORURL || 'https://www.mzansilearnai.co.za/api/payments/redirect/error';
-const SuccessUrl = process.env.OZOW_SUCCESSURL || 'https://www.mzansilearnai.co.za/api/payments/redirect/success';
-const NotifyUrl = process.env.OZOW_NOTIFYURL || 'https://ozow-backend.onrender.com/api/payments/webhook';
+const CancelUrl = process.env.OZOW_CANCELURL;
+const ErrorUrl = process.env.OZOW_ERRORURL;
+const SuccessUrl = process.env.OZOW_SUCCESSURL;
+const NotifyUrl = process.env.OZOW_NOTIFYURL;
 
 app.post('/api/payments/initiate', async (req, res) => {
   try {
     const { amount, reference } = req.body;
-
-    if (amount === undefined || amount === null || isNaN(amount)) {
-      return res.status(400).json({ error: 'Amount must be a valid number' });
-    }
-
-    // Format amount to 2 decimal places string
+    if (!amount || isNaN(amount)) return res.status(400).json({ error: 'Amount must be a valid number' });
     const Amount = parseFloat(amount).toFixed(2);
     const TransactionReference = reference || `INV-${Date.now()}`;
     const BankReference = TransactionReference;
-
-    // Build hash string - order matters
     const hashString = `${SiteCode}${CountryCode}${CurrencyCode}${Amount}${TransactionReference}${BankReference}${CancelUrl}${ErrorUrl}${SuccessUrl}${NotifyUrl}${IsTest}${PrivateKey}`;
-    console.log('🧩 Hash String:', hashString);
-
     const HashCheck = crypto.createHash('sha512').update(hashString, 'utf8').digest('hex');
-    console.log('🔐 Hash Generated:', HashCheck);
-
-    const payload = {
-      SiteCode,
-      CountryCode,
-      CurrencyCode,
-      Amount,
-      TransactionReference,
-      BankReference,
-      CancelUrl,
-      ErrorUrl,
-      SuccessUrl,
-      NotifyUrl,
-      IsTest,
-      HashCheck
-    };
-
-    console.log('📦 Payload sent to Ozow:', payload);
-
-    // POST to Ozow
-    const ozowRes = await axios.post('https://api.ozow.com/v3/transactions', payload, {
-      headers: {
-        'apiKey': ApiKey,
-        'Content-Type': 'application/json'
-      },
-      timeout: 15000
-    });
-
-    console.log('✅ Ozow Response:', ozowRes.data);
-    return res.json(ozowRes.data);
+    const payload = { SiteCode, CountryCode, CurrencyCode, Amount, TransactionReference, BankReference, CancelUrl, ErrorUrl, SuccessUrl, NotifyUrl, IsTest, HashCheck };
+    const ozowRes = await axios.post('https://api.ozow.com/PostPaymentRequest', payload, { headers: { 'apiKey': ApiKey, 'Content-Type': 'application/json' } });
+    res.json(ozowRes.data);
   } catch (err) {
-    console.error('💳 Ozow Error:', err.response?.data || err.message || err);
-    return res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+    console.error('Ozow Error:', err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
   }
 });
 
-// Webhook endpoint to receive NotifyUrl callbacks
 app.post('/api/payments/webhook', (req, res) => {
-  console.log('📥 Webhook received:', req.body);
-  // TODO: Add validation of webhook payload if needed
+  console.log('Webhook received:', req.body);
   res.sendStatus(200);
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ Ozow backend running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Ozow backend live v2 running on port ${PORT}`));

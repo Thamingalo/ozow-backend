@@ -1,7 +1,7 @@
 {
-  "name": "ozow-backend",
+  "name": "ozow-backend-live-v2",
   "version": "1.0.0",
-  "description": "Minimal Ozow backend for test integration (Express).",
+  "description": "Ozow backend live v2 with PostPaymentRequest endpoint",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

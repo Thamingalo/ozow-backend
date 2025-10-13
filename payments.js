@@ -1,67 +1,71 @@
 import express from "express";
 import crypto from "crypto";
+import fetch from "node-fetch";
 
 const router = express.Router();
 
-const {
-  OZOW_SITE_CODE,
-  OZOW_PRIVATE_KEY,
-  OZOW_API_KEY,
-  REDIRECT_BASE_URL,
-  WEBHOOK_BASE_URL,
-} = process.env;
-
-// 🟢 Initiate Payment (Demo Mode)
 router.post("/initiate", async (req, res) => {
   try {
-    const { amount = 25.0, reference = "INV-TEST-001", isTest = true } = req.body;
+    const { amount, firstName, lastName, reference, isTest } = req.body;
 
-    const hashString = `${OZOW_SITE_CODE}ZAZAR${amount.toFixed(2)}${reference}${reference}${REDIRECT_BASE_URL}/api/payments/redirect/cancel${REDIRECT_BASE_URL}/api/payments/redirect/error${REDIRECT_BASE_URL}/api/payments/redirect/success${WEBHOOK_BASE_URL}/api/payments/webhook${isTest}${OZOW_PRIVATE_KEY}`;
+    if (!amount || isNaN(amount)) return res.status(400).json({ error: "Invalid amount" });
 
-    const hashCheck = crypto.createHash("sha512").update(hashString).digest("hex");
+    const siteCode = process.env.OZOW_SITE_CODE;
+    const countryCode = "ZA";
+    const currencyCode = "ZAR";
+    const privateKey = process.env.OZOW_PRIVATE_KEY;
+    const apiKey = process.env.OZOW_API_KEY;
+    const redirectBase = process.env.REDIRECT_BASE_URL;
+    const webhookBase = process.env.WEBHOOK_BASE_URL;
+
+    const cancelUrl = `${redirectBase}/api/payments/redirect/cancel`;
+    const errorUrl = `${redirectBase}/api/payments/redirect/error`;
+    const successUrl = `${redirectBase}/api/payments/redirect/success`;
+    const notifyUrl = `${webhookBase}/api/payments/webhook`;
+
+    const hashString = `${siteCode}${countryCode}${currencyCode}${Number(amount).toFixed(2)}${reference}${reference}${cancelUrl}${errorUrl}${successUrl}${notifyUrl}${isTest}${privateKey}`.toLowerCase();
+    console.log("🧩 Hash String:", hashString);
+    const hash = crypto.createHash("sha512").update(hashString).digest("hex");
+    console.log("🔐 Generated Hash:", hash);
 
     const payload = {
-      siteCode: OZOW_SITE_CODE,
-      countryCode: "ZA",
-      currencyCode: "ZAR",
-      amount: amount.toFixed(2),
-      transactionReference: reference,
-      bankReference: reference,
-      cancelUrl: `${REDIRECT_BASE_URL}/api/payments/redirect/cancel`,
-      errorUrl: `${REDIRECT_BASE_URL}/api/payments/redirect/error`,
-      successUrl: `${REDIRECT_BASE_URL}/api/payments/redirect/success`,
-      notifyUrl: `${WEBHOOK_BASE_URL}/api/payments/webhook`,
-      isTest,
-      hashCheck,
-      apiKey: OZOW_API_KEY,
+      requestFields: {
+        SiteCode: siteCode,
+        CountryCode: countryCode,
+        CurrencyCode: currencyCode,
+        Amount: Number(amount).toFixed(2),
+        TransactionReference: reference,
+        BankReference: reference,
+        CancelUrl: cancelUrl,
+        ErrorUrl: errorUrl,
+        SuccessUrl: successUrl,
+        NotifyUrl: notifyUrl,
+        IsTest: isTest,
+        HashCheck: hash
+      }
     };
 
-    console.log("🧩 Hash String:", hashString);
-    console.log("🔐 Hash Generated:", hashCheck);
     console.log("📦 Payload sent to Ozow:", payload);
 
-    return res.json({
-      status: "success",
-      redirectUrl: `https://pay.ozow.com/?ref=${reference}`,
-      payload,
+    const response = await fetch("https://api.ozow.com/PostPaymentRequest", {
+      method: "POST",
+      headers: {
+        "ApiKey": apiKey,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload)
     });
+
+    const result = await response.json();
+    console.log("💳 Ozow Response:", result);
+
+    if (result?.url) return res.json({ paymentRequestId: result.paymentRequestId, url: result.url });
+    res.status(400).json({ error: "No URL returned", details: result });
   } catch (err) {
-    console.error("❌ Payment initiation error:", err.message);
-    return res.status(500).json({ error: "Internal Server Error", details: err.message });
+    console.error("❌ Create payment error:", err);
+    res.status(500).json({ error: "Payment creation failed", details: err.message });
   }
-});
-
-// 🟡 Webhook Handler (Demo)
-router.post("/webhook", (req, res) => {
-  console.log("📬 Webhook received:", req.body);
-  res.sendStatus(200);
-});
-
-// 🟣 Verify Payment (Demo)
-router.post("/verify", (req, res) => {
-  const { reference } = req.body;
-  console.log("🔎 Verify request for:", reference);
-  res.json({ status: "success", reference, verified: true });
 });
 
 export default router;

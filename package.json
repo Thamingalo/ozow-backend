@@ -1,12 +1,12 @@
 {
-  "name": "ozow-backend-v5.2",
+  "name": "ozow-backend-v6.1",
   "version": "1.0.0",
+  "main": "server.js",
   "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
     "express": "^4.18.2",
+    "dotenv": "^16.0.3",
     "node-fetch": "^3.3.2"
   }
 }

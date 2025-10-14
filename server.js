@@ -33,8 +33,17 @@ app.post('/api/payments/initiate', async (req, res) => {
     const hashString = `${SiteCode}${CountryCode}${CurrencyCode}${Amount}${TransactionReference}${BankReference}${CancelUrl}${ErrorUrl}${SuccessUrl}${NotifyUrl}${IsTest}${PrivateKey}`;
     const HashCheck = crypto.createHash('sha512').update(hashString, 'utf8').digest('hex');
     const payload = { SiteCode, CountryCode, CurrencyCode, Amount, TransactionReference, BankReference, CancelUrl, ErrorUrl, SuccessUrl, NotifyUrl, IsTest, HashCheck };
-    const ozowRes = await axios.post('https://api.ozow.com/PostPaymentRequest', payload, { headers: { 'apiKey': ApiKey, 'Content-Type': 'application/json' } });
-    res.json(ozowRes.data);
+   const ozowRes = await axios.post(
+  'https://api.ozow.com/PostPaymentRequest',
+  payload,
+  {
+    headers: {
+      'ApiKey': ApiKey,               // <-- Capital A, K
+      'Content-Type': 'application/json; charset=utf-8'
+    }
+  }
+);
+;
   } catch (err) {
     console.error('Ozow Error:', err.response?.data || err.message);
     res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });

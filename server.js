@@ -1,70 +1,59 @@
 import express from "express";
-import crypto from "crypto";
 import bodyParser from "body-parser";
-import fetch from "node-fetch";
+import crypto from "crypto";
+import querystring from "querystring";
 
 const app = express();
-app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 10000;
 
-// Environment variables
-const siteCode = process.env.OZOW_SITE_CODE;
-const countryCode = process.env.OZOW_COUNTRY_CODE;
-const currencyCode = process.env.OZOW_CURRENCY_CODE;
-const privateKey = process.env.OZOW_PRIVATE_KEY;
-const apiKey = process.env.OZOW_API_KEY;
-const apiUrl = process.env.OZOW_API_URL;
+// 🔐 TEST CREDENTIALS (use environment variables for production)
+const ozowConfig = {
+  siteCode: "TSTSTE0001",
+  countryCode: "ZA",
+  currencyCode: "ZAR",
+  privateKey: "215114531AFF7134A94C88CEEA48E",
+  apiKey: "EB5758F2C3B4DF3FF4F2669D5FF5B"
+};
 
-app.post("/api/payments/create", async (req, res) => {
-  try {
-    const {
-      Amount = "25.00",
-      TransactionReference = "INV-TEST-001",
-      BankReference = "INV-TEST-001",
-    } = req.body;
+// 🧮 Generate Hash
+function generateHash(data, privateKey) {
+  const hashString = Object.values(data).join("").toUpperCase() + privateKey;
+  return crypto.createHash("sha512").update(hashString).digest("hex").toUpperCase();
+}
 
-    const CancelUrl = "https://www.mzansilearnai.co.za/api/payments/redirect/cancel";
-    const ErrorUrl = "https://www.mzansilearnai.co.za/api/payments/redirect/error";
-    const SuccessUrl = "https://www.mzansilearnai.co.za/api/payments/redirect/success";
-    const NotifyUrl = "https://ozow-backend.onrender.com/api/payments/webhook";
-    const IsTest = "true";
+// 💳 Payment Route
+app.post("/api/pay", (req, res) => {
+  const paymentData = {
+    SiteCode: ozowConfig.siteCode,
+    CountryCode: ozowConfig.countryCode,
+    CurrencyCode: ozowConfig.currencyCode,
+    Amount: "25.00",
+    TransactionReference: "INV-TEST-001",
+    BankReference: "INV-TEST-001",
+    CancelUrl: "https://www.mzansilearnai.co.za/api/payments/redirect/cancel",
+    ErrorUrl: "https://www.mzansilearnai.co.za/api/payments/redirect/error",
+    SuccessUrl: "https://www.mzansilearnai.co.za/api/payments/redirect/success",
+    NotifyUrl: "https://ozow-backend.onrender.com/api/payments/webhook",
+    IsTest: "true"
+  };
 
-    const dataString = `${siteCode}${countryCode}${currencyCode}${Amount}${TransactionReference}${BankReference}${CancelUrl}${ErrorUrl}${SuccessUrl}${NotifyUrl}${IsTest}${privateKey}`;
-    const hash = crypto.createHash("sha512").update(dataString, "utf8").digest("hex").toUpperCase();
+  paymentData.HashCheck = generateHash(paymentData, ozowConfig.privateKey);
+  paymentData.ApiKey = ozowConfig.apiKey;
 
-    const payload = new URLSearchParams({
-      SiteCode: siteCode,
-      CountryCode: countryCode,
-      CurrencyCode: currencyCode,
-      Amount,
-      TransactionReference,
-      BankReference,
-      CancelUrl,
-      ErrorUrl,
-      SuccessUrl,
-      NotifyUrl,
-      IsTest,
-      HashCheck: hash,
-      ApiKey: apiKey,
-    });
+  const redirectUrl = "https://pay.ozow.com/?" + querystring.stringify(paymentData);
+  console.log("🔁 Redirecting user to:", redirectUrl);
 
-    console.log("📦 Sending Payload:", Object.fromEntries(payload));
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: payload,
-    });
-
-    const result = await response.text();
-    console.log("💳 Ozow Response:", result);
-    res.send(result);
-  } catch (error) {
-    console.error("❌ Error creating payment:", error);
-    res.status(500).json({ error: "Failed to create payment request." });
-  }
+  // Redirect browser to Ozow page
+  res.redirect(redirectUrl);
 });
 
-app.listen(PORT, () => console.log(`🧠 Ozow test backend running on port ${PORT}`));
+// 📨 Webhook route (Ozow callback)
+app.post("/api/payments/webhook", (req, res) => {
+  console.log("📩 Payment Notification Received:", req.body);
+  res.sendStatus(200);
+});
+
+app.listen(PORT, () => console.log(`🚀 Ozow backend running on port ${PORT}`));

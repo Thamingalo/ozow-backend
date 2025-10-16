@@ -1,7 +1,7 @@
 {
   "name": "ozow-backend",
   "version": "1.0.0",
-  "description": "Ozow Payment Gateway Backend for Mzansi Learn AI",
+  "description": "Ozow Payment Gateway Backend",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -11,8 +11,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "body-parser": "^1.20.2"
+    "dotenv": "^16.3.1"
   },
   "engines": {
     "node": ">=18.0.0"

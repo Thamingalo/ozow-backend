@@ -1,11 +1,12 @@
 import express from 'express';
-import { initiatePayment } from '../controllers/paymentController.js';
+import { initiatePayment, ozowWebhook } from '../controllers/paymentController.js';
+
 const router = express.Router();
 
+// Route to start payment process
 router.post('/initiate', initiatePayment);
-router.post('/webhook', (req, res) => {
-  console.log('📩 Ozow Webhook:', req.body);
-  res.status(200).send('Webhook received');
-});
+
+// Webhook route for Ozow to notify payment results
+router.post('/webhook', ozowWebhook);
 
 export default router;

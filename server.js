@@ -3,15 +3,27 @@ import dotenv from "dotenv";
 import cors from "cors";
 import fs from "fs";
 import https from "https";
-import paymentRoutes from "./routes/payments.js";
+app.post('/api/payments/webhook', (req, res) => {
+  console.log('🟣 Ozow webhook received');
+  const data = req.body;
+
+  const result = {
+    transactionReference: data.TransactionReference,
+    status: data.Status,
+    amount: data.Amount,
+  };
+
+  console.log('Webhook data:', data);
+  console.log('Webhook processed:', result);
+
+  res.status(200).json({ success: true, message: 'Webhook processed', data: result });
+});
 
 dotenv.config();
 const app = express();
 
 app.use(express.json());
 app.use(cors());
-
-app.use("/api/payments", paymentRoutes);
 
 const PORT = process.env.PORT || 10000;
 const MODE = process.env.OZOW_MODE || "TEST";

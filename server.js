@@ -1,8 +1,35 @@
-import express from "express";
-import dotenv from "dotenv";
-import cors from "cors";
-import fs from "fs";
-import https from "https";
+// server.js
+import express from 'express';
+import dotenv from 'dotenv';
+import crypto from 'crypto';
+
+dotenv.config();
+
+const app = express(); // ✅ Must be defined before using app.post()
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// --- CONFIG ---
+const PORT = process.env.PORT || 10000;
+const MODE = process.env.MODE || 'TEST';
+const SITE_CODE = process.env.SITE_CODE || 'TSTSTE0001';
+const PRIVATE_KEY = process.env.PRIVATE_KEY || 'demo-private-key';
+
+// --- HELPERS ---
+function generateHash(dataString, privateKey) {
+  return crypto.createHash('sha512').update(dataString + privateKey).digest('hex');
+}
+
+// --- ROUTES ---
+
+// Health check
+app.get('/', (req, res) => {
+  res.status(200).json({ message: '✅ Ozow Secure Backend running', mode: MODE });
+});
+
+// Webhook endpoint
 app.post('/api/payments/webhook', (req, res) => {
   console.log('🟣 Ozow webhook received');
   const data = req.body;
@@ -16,35 +43,21 @@ app.post('/api/payments/webhook', (req, res) => {
   console.log('Webhook data:', data);
   console.log('Webhook processed:', result);
 
-  res.status(200).json({ success: true, message: 'Webhook processed', data: result });
+  res.status(200).json({
+    success: true,
+    message: 'Webhook processed successfully',
+    data: result,
+  });
 });
 
-dotenv.config();
-const app = express();
+// Hash generation endpoint (optional for testing)
+app.post('/api/payments/generate-hash', (req, res) => {
+  const { dataString } = req.body;
+  const hash = generateHash(dataString, PRIVATE_KEY);
+  res.status(200).json({ hash });
+});
 
-app.use(express.json());
-app.use(cors());
-
-const PORT = process.env.PORT || 10000;
-const MODE = process.env.OZOW_MODE || "TEST";
-
-if (MODE === "LIVE") {
-  const sslOptions = {
-    key: fs.readFileSync("./certs/private.key"),
-    cert: fs.readFileSync("./certs/certificate.crt"),
-  };
-  https.createServer(sslOptions, app).listen(PORT, () => {
-    console.log(`🔐 HTTPS Server running in LIVE mode on port ${PORT}`);
-  });
-} else {
-  app.listen(PORT, () => {
-    console.log("🚀 Ozow Backend Server Running");
-    console.log("====================================");
-    console.log(`Port: ${PORT}`);
-    console.log(`Mode: ${MODE}`);
-    console.log(`Site Code: ${process.env.OZOW_SITE_CODE}`);
-    console.log(`Has Private Key: ${!!process.env.OZOW_PRIVATE_KEY}`);
-    console.log(`Has API Key: ${!!process.env.OZOW_API_KEY}`);
-    console.log("====================================");
-  });
-}
+// --- START SERVER ---
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT} in ${MODE} mode`);
+});

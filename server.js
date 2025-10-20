@@ -87,10 +87,12 @@ app.post('/api/payments/webhook', (req, res) => {
     const dataString = `${SiteCode}${TransactionId}${TransactionReference}${Amount}${Status}`;
     const computedHash = crypto.createHash('sha512').update(dataString + PRIVATE_KEY).digest('hex');
 
-    if (computedHash !== Hash) {
-      console.warn('⚠️ Invalid webhook hash. Possible tampering detected.');
-      return res.status(400).json({ success: false, message: 'Invalid hash' });
-    }
+    if (MODE === 'LIVE' && computedHash !== Hash) {
+  console.warn('⚠️ Invalid webhook hash. Possible tampering detected.');
+  return res.status(400).json({ success: false, message: 'Invalid hash' });
+} else if (MODE === 'TEST') {
+  console.log('✅ TEST MODE: Skipping hash validation.');
+}
 
     console.log('Webhook processed:', {
       transactionReference: TransactionReference,
